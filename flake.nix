@@ -22,15 +22,16 @@
             });
 
             my-name = "dev-cli";
+            my-scriptName = "dev";
             my-buildInputs = [ getoptions ];
-            my-script = (pkgs.writeScriptBin my-name (builtins.readFile ./dev)).overrideAttrs(old: {
+            my-script = (pkgs.writeScriptBin my-scriptName (builtins.readFile ./dev)).overrideAttrs(old: {
               buildCommand = "${old.buildCommand}\n patchShebangs $out";
             });
           in pkgs.symlinkJoin {
             name = my-name;
             paths = [ my-script ] ++ my-buildInputs;
             buildInputs = [ pkgs.makeWrapper ];
-            postBuild = "wrapProgram $out/bin/${my-name} --prefix PATH : $out/bin";
+            postBuild = "wrapProgram $out/bin/${my-scriptName} --prefix PATH : $out/bin";
           };
       };
     };
