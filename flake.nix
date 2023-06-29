@@ -10,9 +10,8 @@
     flake-parts.lib.mkFlake { inherit inputs; } {
       # debug = true;
       systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" "x86_64-darwin" ];
-      perSystem = { config, self', inputs', pkgs, system, ... }: rec {
-        packages.default = packages.dev-cli;
-        packages.dev-cli =
+      perSystem = { config, self', inputs', pkgs, system, ... }: {
+        packages.default =
           let
             getoptions = pkgs.getoptions.overrideAttrs (oldAttrs: {
               doCheck = false;
