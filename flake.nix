@@ -14,28 +14,38 @@
     flake-parts.lib.mkFlake { inherit inputs; } {
       # debug = true;
       systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" "x86_64-darwin" ];
-      perSystem = { config, self', inputs', pkgs, system, ... }: {
-        packages = rec {
-          dev =
-            let
-              getoptions = pkgs.getoptions.overrideAttrs (oldAttrs: {
-                doCheck = false;
-              });
+      perSystem = { config, self', inputs', pkgs, system, ... }:
+        let
+          getoptions = pkgs.getoptions.overrideAttrs (oldAttrs: {
+            doCheck = false;
+          });
 
-              my-name = "dev";
-              my-buildInputs = [ getoptions ];
-              my-script = (pkgs.writeScriptBin my-name (builtins.readFile ./dev)).overrideAttrs(old: {
-                buildCommand = "${old.buildCommand}\n patchShebangs $out";
-              });
-            in pkgs.symlinkJoin {
-              name = my-name;
-              paths = [ my-script ] ++ my-buildInputs;
-              buildInputs = [ pkgs.makeWrapper ];
-              postBuild = "wrapProgram $out/bin/${my-name} --prefix PATH : $out/bin";
+          my-buildInputs = [ getoptions ];
+        in {
+          packages = rec {
+            dev =
+              let
+                my-name = "dev";
+                my-script = (pkgs.writeScriptBin my-name (builtins.readFile ./dev)).overrideAttrs(old: {
+                  buildCommand = "${old.buildCommand}\n patchShebangs $out";
+                });
+              in pkgs.symlinkJoin {
+                name = my-name;
+                paths = [ my-script ] ++ my-buildInputs;
+                buildInputs = [ pkgs.makeWrapper ];
+                postBuild = "wrapProgram $out/bin/${my-name} --prefix PATH : $out/bin";
+              };
+
+            default = dev;
+          };
+
+          devShells = {
+            default = pkgs.mkShell {
+              packages = [
+                pkgs.overmind
+              ] ++ my-buildInputs;
             };
-
-          default = dev;
+          };
         };
-      };
     };
 }

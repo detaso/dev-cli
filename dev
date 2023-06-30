@@ -2,113 +2,118 @@
 
 set -euo pipefail
 
-parser_definition () {
-  setup REST help:usage mode:@ -- \
-    "Usage: dev [global options...] [command] [options...] [arguments...]"
+parser_definition() {
+	setup REST help:usage mode:@ -- \
+		"Usage: dev [global options...] [command] [options...] [arguments...]"
 
-  msg -- '' 'dev is a basic wrapper around docker compose and devenv'
-  msg -- 'In addition to the commands listed, you may call any docker compose command.' ''
+	msg -- '' 'dev is a basic wrapper around docker compose and devenv'
+	msg -- 'In addition to the commands listed, you may call any docker compose command.' ''
 
-  msg -- 'Options:'
-  disp :usage -h --help
+	msg -- 'Options:'
+	disp :usage -h --help
 
-  msg -- '' 'Commands:'
-  msg label:up -- "Start containers and processes"
-  msg label:down -- "Stop containers and processes"
-  msg label:logs -- "Container and process logs"
-  msg label:restart -- "Restart containers and processes"
-  msg label:ps -- "List containers and processes"
+	msg -- '' 'Commands:'
+	msg label:up -- "Start containers and processes"
+	msg label:down -- "Stop containers and processes"
+	msg label:logs -- "Container and process logs"
+	msg label:restart -- "Restart containers and processes"
+	msg label:ps -- "List containers and processes"
 }
 
-parser_definition_up () {
-  setup REST help:usage -- \
-    "Usage: up [options...] [service...]"
+parser_definition_up() {
+	setup REST help:usage -- \
+		"Usage: up [options...] [service...]"
 
-  msg -- 'Options:'
-  flag FLAG_D -d --detach -- "Detached mode: Run in background"
-  flag FLAG_F -f --follow -- "Follow output when detached"
-  disp :usage -h --help
+	msg -- 'Options:'
+	flag FLAG_D -d --detach -- "Detached mode: Run in background"
+	flag FLAG_F -f --follow -- "Follow output when detached"
+	disp :usage -h --help
 }
 
-cmd_logs () {
-  overmind echo
+cmd_logs() {
+	overmind echo
 }
 
-cmd_overmind_quit () {
-  if [ -S "$DEVENV_ROOT/.overmind.sock" ]; then
-    overmind quit || true
-  fi
+cmd_overmind_quit() {
+	if [ -S "$DEVENV_ROOT/.overmind.sock" ]; then
+		overmind quit || true
+	fi
 }
 
 eval "$(getoptions parser_definition) exit 1"
 
 if [ $# -eq 0 ]; then
-  usage
-  exit 0
+	usage
+	exit 0
 fi
 
-# FIXME: this is per project
-container_list=(postgres mysql elasticsearch redis)
+if docker compose config --quiet 2>/dev/null; then
+	readarray -t container_list < <(docker compose config --services)
+else
+	container_list=()
+fi
 
 case "${1:-}" in
-  restart)
-    shift
+restart)
+	shift
 
-    containers=()
-    processes=()
-    for i in "${@}"; do
-      if [[ "${container_list[*]}" =~ "${i}" ]]; then
-        containers+=("$i")
-      else
-        processes+=("$i")
-      fi
-    done
+	containers=()
+	processes=()
+	for i in "${@}"; do
+		if [[ "${container_list[*]}" =~ "${i}" ]]; then
+			containers+=("$i")
+		else
+			processes+=("$i")
+		fi
+	done
 
-    if [ ${#containers[@]} -gt 0 ]; then
-      docker compose rm -sf "${containers[@]}"
-      docker compose up -d "${containers[@]}"
-    fi
+	if [ ${#containers[@]} -gt 0 ]; then
+		docker compose rm -sf "${containers[@]}"
+		docker compose up -d "${containers[@]}"
+	fi
 
-    if [ ${#processes[@]} -gt 0 ] || [ ${#containers[@]} -gt 0 ]; then
-      overmind restart "${processes[@]}" "${containers[@]}"
-    fi
-    ;;
-  up)
-    shift
+	if [ ${#processes[@]} -gt 0 ] || [ ${#containers[@]} -gt 0 ]; then
+		if [ -n "${DEVENV_ROOT:-}" ] && [ -S "${DEVENV_ROOT}/.overmind.sock" ]; then
+			overmind restart "${processes[@]}" "${containers[@]}"
+		fi
+	fi
+	;;
+up)
+	shift
 
-    eval "$(getoptions parser_definition_up) exit 1"
+	eval "$(getoptions parser_definition_up) exit 1"
 
-    docker compose up -d
-    if [ -n "${FLAG_D:-}" ]; then
-      echo "Starting processes via overmind"
-      OVERMIND_DAEMONIZE=1 devenv up
+	docker compose up -d
+	if [ -n "${FLAG_D:-}" ]; then
+		echo "Starting processes via overmind"
+		OVERMIND_DAEMONIZE=1 devenv up
 
-      if [ -n "${FLAG_F:-}" ]; then
-        cmd_logs
-      fi
-    else
-      OVERMIND_DAEMONIZE=0 devenv up
-    fi
-    ;;
-  logs)
-    cmd_logs
-    ;;
-  down)
-    echo "Stopping processes via overmind"
-    cmd_overmind_quit
-    docker compose down --remove-orphans
-    ;;
-  ps)
-    echo "Containers:"
-    docker compose ps
-    echo
-    echo "Processes:"
-    overmind ps
-    ;;
-  help)
-    usage
-    ;;
-  *)
-    docker compose "$@"
-    ;;
+		if [ -n "${FLAG_F:-}" ]; then
+			cmd_logs
+		fi
+	else
+		OVERMIND_DAEMONIZE=0 devenv up
+	fi
+	;;
+logs)
+	cmd_logs
+	;;
+down)
+	echo "Stopping processes via overmind"
+	cmd_overmind_quit
+	docker compose down --remove-orphans
+	;;
+ps)
+	echo "Containers:"
+	docker compose ps
+	echo
+	echo "Processes:"
+	overmind ps
+	;;
+help)
+	usage
+	;;
+*)
+	docker compose "$@"
+	;;
 esac
