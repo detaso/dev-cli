@@ -23,20 +23,35 @@
           my-buildInputs = [ getoptions ];
         in {
           packages = rec {
-            dev =
+            overmind =
               let
-                my-name = "dev";
-                my-script = (pkgs.writeScriptBin my-name (builtins.readFile ./dev)).overrideAttrs(old: {
+                my-name = "dev-cli-overmind";
+                script-name = "dev";
+                my-script = (pkgs.writeScriptBin script-name (builtins.readFile ./dev-overmind)).overrideAttrs(old: {
                   buildCommand = "${old.buildCommand}\n patchShebangs $out";
                 });
               in pkgs.symlinkJoin {
                 name = my-name;
                 paths = [ my-script ] ++ my-buildInputs;
                 buildInputs = [ pkgs.makeWrapper ];
-                postBuild = "wrapProgram $out/bin/${my-name} --prefix PATH : $out/bin";
+                postBuild = "wrapProgram $out/bin/${script-name} --prefix PATH : $out/bin";
               };
 
-            default = dev;
+            process-compose =
+              let
+                my-name = "dev-cli-process-compose";
+                script-name = "dev";
+                my-script = (pkgs.writeScriptBin script-name (builtins.readFile ./dev-process-compose)).overrideAttrs(old: {
+                  buildCommand = "${old.buildCommand}\n patchShebangs $out";
+                });
+              in pkgs.symlinkJoin {
+                name = my-name;
+                paths = [ my-script ] ++ my-buildInputs;
+                buildInputs = [ pkgs.makeWrapper ];
+                postBuild = "wrapProgram $out/bin/${script-name} --prefix PATH : $out/bin";
+              };
+
+            default = overmind;
           };
 
           devShells = {

@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+parser_definition() {
+	setup REST help:usage mode:@ -- \
+		"Usage: dev [global options...] [command] [options...] [arguments...]"
+
+	msg -- '' 'dev is a basic wrapper around docker compose and devenv'
+	msg -- 'In addition to the commands listed, you may call any docker compose command.' ''
+
+	msg -- 'Options:'
+	disp :usage -h --help
+
+	msg -- '' 'Commands:'
+	msg label:up -- "Start containers and processes"
+	msg label:down -- "Stop containers and processes"
+	msg label:logs -- "Container and process logs"
+	msg label:restart -- "Restart containers and processes"
+	msg label:ps -- "List containers and processes"
+}
+
+parser_definition_up() {
+	setup REST help:usage -- \
+		"Usage: up [options...] [service...]"
+
+	msg -- 'Options:'
+	flag FLAG_D -d --detach -- "Detached mode: Run in background"
+	flag FLAG_F -f --follow -- "Follow output when detached"
+	disp :usage -h --help
+}
+
+cmd_logs() {
+	overmind echo
+}
+
+eval "$(getoptions parser_definition) exit 1"
+
+if [ $# -eq 0 ]; then
+	usage
+	exit 0
+fi
+
+if docker compose config --quiet 2>/dev/null; then
+	readarray -t container_list < <(docker compose config --services)
+else
+	container_list=()
+fi
+
+case "${1:-}" in
+restart)
+	shift
+
+	containers=()
+	processes=()
+	for i in "${@}"; do
+		if [[ "${container_list[*]}" =~ "${i}" ]]; then
+			containers+=("$i")
+		else
+			processes+=("$i")
+		fi
+	done
+
+	if [ ${#containers[@]} -gt 0 ]; then
+		docker compose rm -sf "${containers[@]}"
+		docker compose up -d "${containers[@]}"
+	fi
+
+	if [ ${#processes[@]} -gt 0 ] || [ ${#containers[@]} -gt 0 ]; then
+		if [ -n "${DEVENV_ROOT:-}" ] && [ -S "${DEVENV_ROOT}/.overmind.sock" ]; then
+			overmind restart "${processes[@]}" "${containers[@]}"
+		fi
+	fi
+	;;
+up)
+	shift
+
+	eval "$(getoptions parser_definition_up) exit 1"
+
+	docker compose up -d
+	if [ -n "${FLAG_D:-}" ]; then
+		echo "Starting processes via process-compose"
+		devenv up
+
+		if [ -n "${FLAG_F:-}" ]; then
+			cmd_logs
+		fi
+	else
+		devenv up
+	fi
+	;;
+logs)
+	cmd_logs
+	;;
+down)
+	echo "Stopping processes via process-compose"
+	process-compose
+	docker compose down --remove-orphans
+	;;
+ps)
+	echo "Containers:"
+	docker compose ps
+	echo
+	echo "Processes:"
+	process compose process list
+	;;
+help)
+	usage
+	;;
+*)
+	docker compose "$@"
+	;;
+esac
