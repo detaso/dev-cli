@@ -27,6 +27,7 @@ parser_definition_up() {
 	msg -- 'Options:'
 	flag FLAG_D -d --detach -- "Detached mode: Run in background"
 	flag FLAG_F -f --follow -- "Follow output when detached"
+	flag FLAG_ONLY_SERVICES --only-services --services -- "Only start services"
 	disp :usage -h --help
 }
 
@@ -84,15 +85,18 @@ up)
 	eval "$(getoptions parser_definition_up) exit 1"
 
 	docker compose up -d
-	if [ -n "${FLAG_D:-}" ]; then
-		echo "Starting processes via overmind"
-		OVERMIND_DAEMONIZE=1 devenv up
 
-		if [ -n "${FLAG_F:-}" ]; then
-			cmd_logs
+	if [ -z "${FLAG_ONLY_SERVICES:-}" ]; then
+		if [ -n "${FLAG_D:-}" ]; then
+			echo "Starting processes via overmind"
+			OVERMIND_DAEMONIZE=1 devenv up
+
+			if [ -n "${FLAG_F:-}" ]; then
+				cmd_logs
+			fi
+		else
+			OVERMIND_DAEMONIZE=0 devenv up
 		fi
-	else
-		OVERMIND_DAEMONIZE=0 devenv up
 	fi
 	;;
 logs)
